@@ -114,6 +114,12 @@ var storageIntegrationSchema = map[string]*schema.Schema{
 		Computed:    true,
 		Description: "Date and time when the storage integration was created.",
 	},
+	"use_private_link_endpoint": {
+		Type:        schema.TypeBool,
+		Optional:    true,
+		Default:     false,
+		Description: "Whether to use a PrivateLink endpoint for the storage integration.",
+	},
 	DescribeOutputAttributeName: {
 		Type:        schema.TypeList,
 		Computed:    true,
@@ -310,12 +316,130 @@ func CreateStorageIntegration(ctx context.Context, d *schema.ResourceData, meta 
 		return diag.FromErr(fmt.Errorf("unexpected provider %v", storageProvider))
 	}
 
+	// Add use_private_link_endpoint and network_rules only after creation (ALTER statement)
 	if err := client.StorageIntegrations.Create(ctx, req); err != nil {
 		return diag.FromErr(fmt.Errorf("error creating storage integration: %w", err))
 	}
 
+	// After creation, set use_private_link_endpoint if needed
+	alterNeeded := false
+	set := sdk.NewStorageIntegrationSetRequest()
+
+	if v, ok := d.GetOk("use_private_link_endpoint"); ok {
+		set.WithUsePrivateLinkEndpoint(v.(bool))
+		alterNeeded = true
+	}
+	if alterNeeded {
+		alterReq := sdk.NewAlterStorageIntegrationRequest(name).WithSet(*set)
+		fmt.Printf("DEBUG: About to run ALTER STORAGE INTEGRATION with request: %+v\n", alterReq)
+		if err := client.StorageIntegrations.Alter(ctx, alterReq); err != nil {
+			return diag.FromErr(fmt.Errorf("error setting use_private_link_endpoint: %w", err))
+		}
+	}
+
 	d.SetId(helpers.EncodeSnowflakeID(name))
-	return GetReadStorageIntegrationFunc(false)(ctx, d, meta)
+	return ReadStorageIntegration(ctx, d, meta)
+}
+
+func ReadStorageIntegration(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
+	client := meta.(*provider.Context).Client
+	id, ok := helpers.DecodeSnowflakeIDLegacy(d.Id()).(sdk.AccountObjectIdentifier)
+	if !ok {
+		return diag.FromErr(fmt.Errorf("storage integration read, error decoding id: %s as sdk.AccountObjectIdentifier, got: %T", d.Id(), id))
+	}
+
+	s, err := client.StorageIntegrations.ShowByIDSafely(ctx, id)
+	if err != nil {
+		if errors.Is(err, sdk.ErrObjectNotFound) {
+			d.SetId("")
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to query storage integration. Marking the resource as removed.",
+					Detail:   fmt.Sprintf("Storage integration id: %s, Err: %s", id.FullyQualifiedName(), err),
+				},
+			}
+		}
+		return diag.FromErr(err)
+	}
+	if err := d.Set(FullyQualifiedNameAttributeName, id.FullyQualifiedName()); err != nil {
+		return diag.FromErr(err)
+	}
+
+	if s.Category != "STORAGE" {
+		return diag.FromErr(fmt.Errorf("expected %v to be a STORAGE integration, got %v", d.Id(), s.Category))
+	}
+	if err := d.Set("name", s.Name); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("type", s.StorageType); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("created_on", s.CreatedOn.String()); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("enabled", s.Enabled); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("comment", s.Comment); err != nil {
+		return diag.FromErr(err)
+	}
+
+	storageIntegrationProps, err := client.StorageIntegrations.Describe(ctx, id)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("could not describe storage integration (%s), err = %w", d.Id(), err))
+	}
+
+	for _, prop := range storageIntegrationProps {
+		switch prop.Name {
+		case "STORAGE_PROVIDER":
+			if err := d.Set("storage_provider", prop.Value); err != nil {
+				return diag.FromErr(err)
+			}
+		case "STORAGE_ALLOWED_LOCATIONS":
+			if err := d.Set("storage_allowed_locations", strings.Split(prop.Value, ",")); err != nil {
+				return diag.FromErr(err)
+			}
+		case "STORAGE_BLOCKED_LOCATIONS":
+			if prop.Value != "" {
+				if err := d.Set("storage_blocked_locations", strings.Split(prop.Value, ",")); err != nil {
+					return diag.FromErr(err)
+				}
+			}
+		case "STORAGE_AWS_IAM_USER_ARN":
+			if err := d.Set("storage_aws_iam_user_arn", prop.Value); err != nil {
+				return diag.FromErr(err)
+			}
+		case "STORAGE_AWS_OBJECT_ACL":
+			if prop.Value != "" {
+				if err := d.Set("storage_aws_object_acl", prop.Value); err != nil {
+					return diag.FromErr(err)
+				}
+			}
+		case "STORAGE_AWS_ROLE_ARN":
+			if err := d.Set("storage_aws_role_arn", prop.Value); err != nil {
+				return diag.FromErr(err)
+			}
+		case "STORAGE_AWS_EXTERNAL_ID":
+			if err := d.Set("storage_aws_external_id", prop.Value); err != nil {
+				return diag.FromErr(err)
+			}
+		case "STORAGE_GCP_SERVICE_ACCOUNT":
+			if err := d.Set("storage_gcp_service_account", prop.Value); err != nil {
+				return diag.FromErr(err)
+			}
+		case "AZURE_CONSENT_URL":
+			if err := d.Set("azure_consent_url", prop.Value); err != nil {
+				return diag.FromErr(err)
+			}
+		case "AZURE_MULTI_TENANT_APP_NAME":
+			if err := d.Set("azure_multi_tenant_app_name", prop.Value); err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
+	return diag.FromErr(err)
 }
 
 func UpdateStorageIntegration(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
@@ -387,6 +511,10 @@ func UpdateStorageIntegration(ctx context.Context, d *schema.ResourceData, meta 
 
 	if d.HasChange("azure_tenant_id") {
 		set.WithAzureParams(*sdk.NewSetAzureStorageParamsRequest(d.Get("azure_tenant_id").(string)))
+	}
+
+	if d.HasChange("use_private_link_endpoint") {
+		set.WithUsePrivateLinkEndpoint(d.Get("use_private_link_endpoint").(bool))
 	}
 
 	if !reflect.DeepEqual(*set, *sdk.NewStorageIntegrationSetRequest()) {

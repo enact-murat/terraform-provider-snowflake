@@ -76,6 +76,7 @@ func (r *CreateStorageIntegrationRequest) toOpts() *CreateStorageIntegrationOpti
 		StorageAllowedLocations: r.StorageAllowedLocations,
 		StorageBlockedLocations: r.StorageBlockedLocations,
 		Comment:                 r.Comment,
+		UsePrivateLinkEndpoint:  r.UsePrivateLinkEndpoint,
 	}
 	if r.S3StorageProviderParams != nil {
 		opts.S3StorageProviderParams = &S3StorageParams{
@@ -110,6 +111,7 @@ func (r *AlterStorageIntegrationRequest) toOpts() *AlterStorageIntegrationOption
 			StorageAllowedLocations: r.Set.StorageAllowedLocations,
 			StorageBlockedLocations: r.Set.StorageBlockedLocations,
 			Comment:                 r.Set.Comment,
+			UsePrivateLinkEndpoint:  r.Set.UsePrivateLinkEndpoint,
 		}
 		if r.Set.S3Params != nil {
 			opts.Set.S3Params = &SetS3StorageParams{

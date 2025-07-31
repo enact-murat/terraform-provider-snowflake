@@ -486,3 +486,44 @@ func TestAcc_StorageIntegration_BlockedLocations_issue2985(t *testing.T) {
 		},
 	})
 }
+
+func TestAcc_StorageIntegration_PrivateLinkEndpoint(t *testing.T) {
+	id := testClient().Ids.RandomAccountObjectIdentifier()
+	awsRoleArn := "arn:aws:iam::000000000001:/role/test"
+
+	configVariables := func(usePrivateLink bool) config.Variables {
+		return config.Variables{
+			"name": config.StringVariable(id.Name()),
+			"aws_role_arn": config.StringVariable(awsRoleArn),
+			"allowed_locations": config.SetVariable(
+				config.StringVariable("s3://foo/"),
+			),
+			"use_private_link_endpoint": config.BoolVariable(usePrivateLink),
+		}
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: TestAccProtoV6ProviderFactories,
+		PreCheck:                 func() { TestAccPreCheck(t) },
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{
+			tfversion.RequireAbove(tfversion.Version1_5_0),
+		},
+		CheckDestroy: CheckDestroy(t, resources.StorageIntegration),
+		Steps: []resource.TestStep{
+			{
+				ConfigVariables: configVariables(true),
+				ConfigDirectory: ConfigurationDirectory("TestAcc_StorageIntegration/PrivateLinkEndpoint/set"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("snowflake_storage_integration.test", "use_private_link_endpoint", "true"),
+				),
+			},
+			{
+				ConfigVariables: configVariables(false),
+				ConfigDirectory: ConfigurationDirectory("TestAcc_StorageIntegration/PrivateLinkEndpoint/unset"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("snowflake_storage_integration.test", "use_private_link_endpoint", "false"),
+				),
+			},
+		},
+	})
+}

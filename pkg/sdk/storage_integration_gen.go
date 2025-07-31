@@ -32,6 +32,7 @@ type CreateStorageIntegrationOptions struct {
 	StorageAllowedLocations    []StorageLocation       `ddl:"parameter,parentheses" sql:"STORAGE_ALLOWED_LOCATIONS"`
 	StorageBlockedLocations    []StorageLocation       `ddl:"parameter,parentheses" sql:"STORAGE_BLOCKED_LOCATIONS"`
 	Comment                    *string                 `ddl:"parameter,single_quotes" sql:"COMMENT"`
+	UsePrivateLinkEndpoint     *bool                   `ddl:"parameter" sql:"USE_PRIVATELINK_ENDPOINT"`
 }
 
 type StorageLocation struct {
@@ -73,6 +74,7 @@ type StorageIntegrationSet struct {
 	StorageAllowedLocations []StorageLocation      `ddl:"parameter,parentheses" sql:"STORAGE_ALLOWED_LOCATIONS"`
 	StorageBlockedLocations []StorageLocation      `ddl:"parameter,parentheses" sql:"STORAGE_BLOCKED_LOCATIONS"`
 	Comment                 *string                `ddl:"parameter,single_quotes" sql:"COMMENT"`
+	UsePrivateLinkEndpoint  *bool                  `ddl:"parameter" sql:"USE_PRIVATELINK_ENDPOINT"`
 }
 
 type SetS3StorageParams struct {

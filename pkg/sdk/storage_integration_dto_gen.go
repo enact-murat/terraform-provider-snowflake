@@ -21,6 +21,7 @@ type CreateStorageIntegrationRequest struct {
 	StorageAllowedLocations    []StorageLocation // required
 	StorageBlockedLocations    []StorageLocation
 	Comment                    *string
+	UsePrivateLinkEndpoint     *bool
 }
 
 type S3StorageParamsRequest struct {
@@ -52,6 +53,7 @@ type StorageIntegrationSetRequest struct {
 	StorageAllowedLocations []StorageLocation
 	StorageBlockedLocations []StorageLocation
 	Comment                 *string
+	UsePrivateLinkEndpoint  *bool
 }
 
 type SetS3StorageParamsRequest struct {

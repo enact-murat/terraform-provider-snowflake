@@ -51,6 +51,11 @@ func (s *CreateStorageIntegrationRequest) WithComment(Comment string) *CreateSto
 	return s
 }
 
+func (s *CreateStorageIntegrationRequest) WithUsePrivateLinkEndpoint(use bool) *CreateStorageIntegrationRequest {
+	s.UsePrivateLinkEndpoint = &use
+	return s
+}
+
 func NewS3StorageParamsRequest(
 	Protocol S3Protocol,
 	StorageAwsRoleArn string,
@@ -147,6 +152,11 @@ func (s *StorageIntegrationSetRequest) WithStorageBlockedLocations(StorageBlocke
 
 func (s *StorageIntegrationSetRequest) WithComment(Comment string) *StorageIntegrationSetRequest {
 	s.Comment = &Comment
+	return s
+}
+
+func (s *StorageIntegrationSetRequest) WithUsePrivateLinkEndpoint(use bool) *StorageIntegrationSetRequest {
+	s.UsePrivateLinkEndpoint = &use
 	return s
 }
 
